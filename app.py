@@ -6,6 +6,9 @@ import tmdb
 st.set_page_config(page_title="Team TK's Watch Lists", layout="wide", initial_sidebar_state="collapsed")
 db.init_db()
 
+def get_tmdb_url(tmdb_id, media_type="movie"):
+    return f"https://www.themoviedb.org/{media_type}/{tmdb_id}"
+
 def render_countdown(release_date_str, media_type="movie", next_ep_info=""):
     prefix = "📺 Next Ep" if media_type == "tv" else "🎬 Release"
     
@@ -67,7 +70,8 @@ if menu == "Search & Add":
                         st.write("🖼️ *No poster*")
                 
                 with col2:
-                    st.markdown(f"### {item['title']} ({item['media_type'].upper()})")
+                    link = get_tmdb_url(item["tmdb_id"], item["media_type"])
+                    st.markdown(f"### [{item['title']}]({link}) ({item['media_type'].upper()})")
                     st.markdown(render_countdown(item["release_date"], item["media_type"], item.get("next_ep_info", "")))
                     if item["genres"]:
                         st.caption(f"**Genres:** {item['genres']}")
@@ -144,7 +148,8 @@ elif menu == "Our Watchlists":
                         if row["poster_path"]:
                             st.image(row["poster_path"], width=170)
                     with card_col2:
-                        st.markdown(f"### {row['title']}")
+                        link = get_tmdb_url(row["tmdb_id"], row["media_type"])
+                        st.markdown(f"### [{row['title']}]({link})")
                         st.caption(render_countdown(row["release_date"], row["media_type"], row.get("next_ep_info", "")))
                         if row["genres"]:
                             st.caption(f"🏷️ `{row['genres']}`")
@@ -205,7 +210,8 @@ elif menu == "✨ Recommendations":
                             if item["poster_path"]:
                                 st.image(item["poster_path"], width=170)
                         with card_col2:
-                            st.markdown(f"### {item['title']} ({item['media_type'].upper()})")
+                            link = get_tmdb_url(item["tmdb_id"], item["media_type"])
+                            st.markdown(f"### [{item['title']}]({link}) ({item['media_type'].upper()})")
                             st.caption(f"💡 *Because you have '{item['recommended_because']}' in your list*")
                             st.write(item["overview"])
                         
@@ -257,7 +263,8 @@ elif menu == "📅 Coming Soon (Next 30 Days)":
                         if item["poster_path"]:
                             st.image(item["poster_path"], width=170)
                     with card_col2:
-                        st.markdown(f"### {item['title']}")
+                        link = get_tmdb_url(item["tmdb_id"], item["media_type"])
+                        st.markdown(f"### [{item['title']}]({link})")
                         st.markdown(render_countdown(item["release_date"], item["media_type"]))
                         st.caption(item["overview"])
                     
