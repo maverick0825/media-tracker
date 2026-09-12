@@ -50,6 +50,10 @@ ALL_GENRES = [
     "Romance", "Sci-Fi", "Thriller"
 ]
 
+# Fetch all existing items across all lists to check for duplicates
+all_saved_items = db.get_watchlist(watcher_filter="All")
+existing_tmdb_ids = {item["tmdb_id"] for item in all_saved_items}
+
 if menu == "Search & Add":
     st.subheader("🔍 Search Titles")
     search_term = st.text_input("Enter title...", placeholder="e.g. Reacher, Severance, Dune")
@@ -77,32 +81,35 @@ if menu == "Search & Add":
                         st.caption(f"**Genres:** {item['genres']}")
                     st.caption(item["overview"])
                     
-                    add_col1, add_col2 = st.columns([1, 1])
-                    with add_col1:
-                        target_list = st.selectbox(
-                            "Add to list:", 
-                            ["Both", "TJ", "Kristen"], 
-                            key=f"target_{item['tmdb_id']}"
-                        )
-                    with add_col2:
-                        st.write("")
-                        st.write("")
-                        if st.button("➕ Add to Registry", key=f"add_{item['tmdb_id']}", width="stretch"):
-                            providers = tmdb.get_watch_providers(item["tmdb_id"], item["media_type"])
-                            db.add_media(
-                                tmdb_id=item["tmdb_id"],
-                                title=item["title"],
-                                media_type=item["media_type"],
-                                release_date=item["release_date"],
-                                poster_path=item["poster_path"],
-                                streaming_providers=providers,
-                                watcher=target_list,
-                                genres=item["genres"],
-                                next_ep_info=item.get("next_ep_info", ""),
-                                status="Want to Watch"
+                    if item["tmdb_id"] in existing_tmdb_ids:
+                        st.info("✅ Already in your watchlist")
+                    else:
+                        add_col1, add_col2 = st.columns([1, 1])
+                        with add_col1:
+                            target_list = st.selectbox(
+                                "Add to list:", 
+                                ["Both", "TJ", "Kristen"], 
+                                key=f"target_{item['tmdb_id']}"
                             )
-                            st.success(f"Added to {target_list}'s List!")
-                            st.rerun()
+                        with add_col2:
+                            st.write("")
+                            st.write("")
+                            if st.button("➕ Add to Registry", key=f"add_{item['tmdb_id']}", width="stretch"):
+                                providers = tmdb.get_watch_providers(item["tmdb_id"], item["media_type"])
+                                db.add_media(
+                                    tmdb_id=item["tmdb_id"],
+                                    title=item["title"],
+                                    media_type=item["media_type"],
+                                    release_date=item["release_date"],
+                                    poster_path=item["poster_path"],
+                                    streaming_providers=providers,
+                                    watcher=target_list,
+                                    genres=item["genres"],
+                                    next_ep_info=item.get("next_ep_info", ""),
+                                    status="Want to Watch"
+                                )
+                                st.success(f"Added to {target_list}'s List!")
+                                st.rerun()
 
 elif menu == "Our Watchlists":
     active_tab = st.radio(
@@ -196,10 +203,12 @@ elif menu == "✨ Recommendations":
         st.info(f"No saved items found for '{rec_target}' yet. Add a few titles to unlock recommendations!")
     else:
         with st.spinner("Finding recommendations based on your tastes..."):
-            recs = tmdb.get_recommendations_for_user(user_items)
+            raw_recs = tmdb.get_recommendations_for_user(user_items)
+            # Filter out titles already saved anywhere in your registry
+            recs = [r for r in raw_recs if r["tmdb_id"] not in existing_tmdb_ids]
             
         if not recs:
-            st.write("No direct recommendations found yet. Try adding a couple more titles.")
+            st.write("No new recommendations found. Try adding a couple more titles to your watchlist!")
         else:
             cols = st.columns(2)
             for idx, item in enumerate(recs):
@@ -249,10 +258,12 @@ elif menu == "📅 Coming Soon (Next 30 Days)":
     type_code = "movie" if media_choice == "Movies" else "tv"
     
     with st.spinner(f"Loading upcoming {media_choice.lower()}..."):
-        upcoming_items = tmdb.get_upcoming_media(type_code)
+        raw_upcoming = tmdb.get_upcoming_media(type_code)
+        # Filter out anything already in your database
+        upcoming_items = [item for item in raw_upcoming if item["tmdb_id"] not in existing_tmdb_ids]
         
     if not upcoming_items:
-        st.info("No upcoming releases found in this window.")
+        st.info("No new upcoming releases found in this window (or all are already in your watchlist).")
     else:
         cols = st.columns(2)
         for idx, item in enumerate(upcoming_items):
