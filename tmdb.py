@@ -1,96 +1,168 @@
-import requests
+from datetime import datetime, date, timedelta
 import streamlit as st
+import requests
 
-API_KEY = st.secrets["TMDB_API_KEY"]
+TMDB_API_KEY = st.secrets["TMDB_API_KEY"]
 BASE_URL = "https://api.themoviedb.org/3"
-IMG_BASE = "https://image.tmdb.org/t/p/w300"
-
-GENRE_MAP = {
-    28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy", 80: "Crime",
-    99: "Documentary", 18: "Drama", 10751: "Family", 14: "Fantasy", 36: "History",
-    27: "Horror", 10402: "Music", 9648: "Mystery", 10749: "Romance", 878: "Sci-Fi",
-    10770: "TV Movie", 53: "Thriller", 10752: "War", 37: "Western",
-    10759: "Action & Adventure", 10762: "Kids", 10763: "News", 10764: "Reality",
-    10765: "Sci-Fi & Fantasy", 10766: "Soap", 10767: "Talk", 10768: "War & Politics"
-}
-
-def get_tv_details(tmdb_id):
-    """Fetches series details, specifically next_episode_to_air."""
-    url = f"{BASE_URL}/tv/{tmdb_id}"
-    params = {"api_key": API_KEY, "language": "en-US"}
-    try:
-        data = requests.get(url, params=params).json()
-        next_ep = data.get("next_episode_to_air")
-        status = data.get("status", "")
-        
-        if next_ep:
-            return {
-                "next_air_date": next_ep.get("air_date"),
-                "next_ep_tag": f"S{next_ep.get('season_number')}E{next_ep.get('episode_number')}",
-                "next_ep_name": next_ep.get("name", "")
-            }
-        elif status in ["Ended", "Canceled"]:
-            return {"status_note": "Series Ended"}
-        else:
-            return {"status_note": "Awaiting Next Season"}
-    except Exception:
-        return {}
+IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
 
 def search_content(query):
-    if not query:
-        return []
     url = f"{BASE_URL}/search/multi"
     params = {
-        "api_key": API_KEY,
+        "api_key": TMDB_API_KEY,
         "query": query,
-        "include_adult": "false",
-        "language": "en-US"
+        "include_adult": False,
+        "language": "en-US",
+        "page": 1
     }
-    response = requests.get(url, params=params).json()
-    results = []
+    response = requests.get(url, params=params)
+    if response.status_code != 200:
+        return []
+        
+    results = response.json().get("results", [])
+    filtered = []
     
-    for item in response.get("results", []):
+    for item in results:
         media_type = item.get("media_type")
         if media_type not in ["movie", "tv"]:
             continue
             
+        tmdb_id = item.get("id")
         title = item.get("title") if media_type == "movie" else item.get("name")
-        poster = f"{IMG_BASE}{item['poster_path']}" if item.get("poster_path") else None
+        raw_release = item.get("release_date") if media_type == "movie" else item.get("first_air_date")
+        release_date = raw_release if raw_release else "TBD"
         
-        genre_ids = item.get("genre_ids", [])
-        genre_names = [GENRE_MAP.get(gid) for gid in genre_ids if gid in GENRE_MAP]
+        poster_path = f"{IMAGE_BASE_URL}{item.get('poster_path')}" if item.get("poster_path") else None
+        overview = item.get("overview", "No synopsis available.")
         
-        # If it's a TV show, check for upcoming episodes
+        details = get_details(tmdb_id, media_type)
+        genres = ", ".join([g["name"] for g in details.get("genres", [])])
         next_ep_info = ""
-        release_date = item.get("release_date") if media_type == "movie" else item.get("first_air_date")
         
         if media_type == "tv":
-            details = get_tv_details(item["id"])
-            if "next_air_date" in details:
-                release_date = details["next_air_date"]
-                next_ep_info = f"{details['next_ep_tag']}: {details['next_ep_name']}"
-            elif "status_note" in details:
-                next_ep_info = details["status_note"]
-        
-        results.append({
-            "tmdb_id": item["id"],
+            next_ep = details.get("next_episode_to_air")
+            if next_ep:
+                release_date = next_ep.get("air_date", release_date)
+                ep_season = next_ep.get("season_number")
+                ep_num = next_ep.get("episode_number")
+                next_ep_info = f"S{ep_season}E{ep_num}: {next_ep.get('name', '')}"
+            else:
+                status = details.get("status", "")
+                next_ep_info = f"Status: {status}"
+                
+        filtered.append({
+            "tmdb_id": tmdb_id,
             "title": title,
             "media_type": media_type,
-            "release_date": release_date or "TBD",
-            "poster_path": poster,
-            "genres": ", ".join(genre_names),
-            "overview": item.get("overview", ""),
+            "release_date": release_date,
+            "poster_path": poster_path,
+            "overview": overview,
+            "genres": genres,
             "next_ep_info": next_ep_info
         })
-    return results
+        
+    return filtered
 
-def get_watch_providers(tmdb_id, media_type, region="US"):
+def get_details(tmdb_id, media_type):
+    url = f"{BASE_URL}/{media_type}/{tmdb_id}"
+    params = {"api_key": TMDB_API_KEY, "language": "en-US"}
+    res = requests.get(url, params=params)
+    return res.json() if res.status_code == 200 else {}
+
+def get_watch_providers(tmdb_id, media_type):
     url = f"{BASE_URL}/{media_type}/{tmdb_id}/watch/providers"
-    params = {"api_key": API_KEY}
-    response = requests.get(url, params=params).json()
+    params = {"api_key": TMDB_API_KEY}
+    res = requests.get(url, params=params)
+    if res.status_code != 200:
+        return "None listed"
     
-    results = response.get("results", {}).get(region, {})
-    flatrate = results.get("flatrate", [])
+    us_providers = res.json().get("results", {}).get("US", {})
+    flatrate = us_providers.get("flatrate", [])
+    names = [p["provider_name"] for p in flatrate]
+    return ", ".join(names) if names else "Check streaming apps / Rental only"
+
+def get_recommendations_for_user(seed_items):
+    """Fetches recommendations based on up to 5 items currently in a user's list."""
+    if not seed_items:
+        return []
+        
+    seen_ids = {item["tmdb_id"] for item in seed_items}
+    recommendations = []
     
-    providers = [p.get("provider_name") for p in flatrate]
-    return ", ".join(providers) if providers else "Not currently streaming"
+    # Use the 5 most recent titles as recommendation seeds
+    for item in seed_items[:5]:
+        tmdb_id = item["tmdb_id"]
+        media_type = item["media_type"]
+        url = f"{BASE_URL}/{media_type}/{tmdb_id}/recommendations"
+        params = {"api_key": TMDB_API_KEY, "language": "en-US", "page": 1}
+        res = requests.get(url, params=params)
+        
+        if res.status_code == 200:
+            for rec in res.json().get("results", [])[:3]:
+                rec_id = rec.get("id")
+                if rec_id in seen_ids:
+                    continue
+                seen_ids.add(rec_id)
+                
+                title = rec.get("title") if media_type == "movie" else rec.get("name")
+                raw_rel = rec.get("release_date") if media_type == "movie" else rec.get("first_air_date")
+                poster = f"{IMAGE_BASE_URL}{rec.get('poster_path')}" if rec.get("poster_path") else None
+                
+                recommendations.append({
+                    "tmdb_id": rec_id,
+                    "title": title,
+                    "media_type": media_type,
+                    "release_date": raw_rel if raw_rel else "TBD",
+                    "poster_path": poster,
+                    "overview": rec.get("overview", "No synopsis available."),
+                    "recommended_because": item["title"]
+                })
+                
+    return recommendations
+
+def get_upcoming_media(media_type="movie"):
+    """Fetches movies or TV shows dropping within the next 30 days."""
+    today = date.today()
+    future = today + timedelta(days=30)
+    today_str = today.strftime("%Y-%m-%d")
+    future_str = future.strftime("%Y-%m-%d")
+    
+    url = f"{BASE_URL}/discover/{media_type}"
+    params = {
+        "api_key": TMDB_API_KEY,
+        "language": "en-US",
+        "sort_by": "popularity.desc",
+        "include_adult": False,
+        "page": 1
+    }
+    
+    if media_type == "movie":
+        params["primary_release_date.gte"] = today_str
+        params["primary_release_date.lte"] = future_str
+    else:
+        params["air_date.gte"] = today_str
+        params["air_date.lte"] = future_str
+        
+    res = requests.get(url, params=params)
+    if res.status_code != 200:
+        return []
+        
+    results = res.json().get("results", [])
+    upcoming = []
+    
+    for item in results[:12]:
+        tmdb_id = item.get("id")
+        title = item.get("title") if media_type == "movie" else item.get("name")
+        raw_rel = item.get("release_date") if media_type == "movie" else item.get("first_air_date")
+        poster = f"{IMAGE_BASE_URL}{item.get('poster_path')}" if item.get("poster_path") else None
+        
+        upcoming.append({
+            "tmdb_id": tmdb_id,
+            "title": title,
+            "media_type": media_type,
+            "release_date": raw_rel if raw_rel else "TBD",
+            "poster_path": poster,
+            "overview": item.get("overview", "No synopsis available.")
+        })
+        
+    return upcoming

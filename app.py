@@ -3,7 +3,7 @@ import streamlit as st
 import database as db
 import tmdb
 
-st.set_page_config(page_title="Family Watch Registry", layout="wide")
+st.set_page_config(page_title="Team TK's Watch Lists", layout="wide", initial_sidebar_state="collapsed")
 db.init_db()
 
 def render_countdown(release_date_str, media_type="movie", next_ep_info=""):
@@ -17,7 +17,6 @@ def render_countdown(release_date_str, media_type="movie", next_ep_info=""):
         today = date.today()
         days_left = (rel_date - today).days
         formatted_date = rel_date.strftime('%a, %b %d')
-        
         ep_label = f" ({next_ep_info})" if next_ep_info and ":" in next_ep_info else ""
         
         if days_left > 1:
@@ -33,9 +32,14 @@ def render_countdown(release_date_str, media_type="movie", next_ep_info=""):
     except Exception:
         return f"📅 {release_date_str}"
 
-st.title("🎬 Family Watch Registry")
+st.title("🎬 Team TK's Watch Lists")
 
-menu = st.sidebar.radio("Navigate", ["Our Watchlists", "Search & Add"])
+menu = st.sidebar.radio("Navigate", [
+    "Our Watchlists", 
+    "Search & Add", 
+    "✨ Recommendations", 
+    "📅 Coming Soon (Next 30 Days)"
+])
 
 ALL_GENRES = [
     "All", "Action", "Adventure", "Animation", "Comedy", "Crime", 
@@ -44,7 +48,7 @@ ALL_GENRES = [
 ]
 
 if menu == "Search & Add":
-    st.subheader("🔍 Search Movies & TV Shows")
+    st.subheader("🔍 Search Titles")
     search_term = st.text_input("Enter title...", placeholder="e.g. Reacher, Severance, Dune")
     
     if search_term:
@@ -54,11 +58,11 @@ if menu == "Search & Add":
         
         for item in results:
             with st.container(border=True):
-                col1, col2 = st.columns([1, 4])
+                col1, col2 = st.columns([1, 3])
                 
                 with col1:
                     if item["poster_path"]:
-                        st.image(item["poster_path"], width=130)
+                        st.image(item["poster_path"], use_container_width=True)
                     else:
                         st.write("🖼️ *No poster*")
                 
@@ -69,7 +73,7 @@ if menu == "Search & Add":
                         st.caption(f"**Genres:** {item['genres']}")
                     st.caption(item["overview"])
                     
-                    add_col1, add_col2 = st.columns([2, 2])
+                    add_col1, add_col2 = st.columns([1, 1])
                     with add_col1:
                         target_list = st.selectbox(
                             "Add to list:", 
@@ -79,7 +83,7 @@ if menu == "Search & Add":
                     with add_col2:
                         st.write("")
                         st.write("")
-                        if st.button("➕ Add to Registry", key=f"add_{item['tmdb_id']}"):
+                        if st.button("➕ Add to Registry", key=f"add_{item['tmdb_id']}", use_container_width=True):
                             providers = tmdb.get_watch_providers(item["tmdb_id"], item["media_type"])
                             db.add_media(
                                 tmdb_id=item["tmdb_id"],
@@ -93,7 +97,7 @@ if menu == "Search & Add":
                                 next_ep_info=item.get("next_ep_info", ""),
                                 status="Want to Watch"
                             )
-                            st.success(f"Added **{item['title']}** to {target_list}'s List!")
+                            st.success(f"Added to {target_list}'s List!")
                             st.rerun()
 
 elif menu == "Our Watchlists":
@@ -129,11 +133,11 @@ elif menu == "Our Watchlists":
     if not items:
         st.write("No items found matching the current filters.")
     else:
-        st.markdown(f"**Showing {len(items)} item(s)**")
+        st.caption(f"Showing {len(items)} item(s)")
         
-        cols = st.columns(3)
+        cols = st.columns(2)
         for idx, row in enumerate(items):
-            with cols[idx % 3]:
+            with cols[idx % 2]:
                 with st.container(border=True):
                     if row["poster_path"]:
                         st.image(row["poster_path"], use_container_width=True)
@@ -145,26 +149,132 @@ elif menu == "Our Watchlists":
                         
                     st.markdown(f"📺 **Streaming:** `{row['streaming_providers']}`")
                     
-                    new_status = st.selectbox(
-                        "Status", 
-                        ["Want to Watch", "Watching", "Watched"], 
-                        index=["Want to Watch", "Watching", "Watched"].index(row["status"]),
-                        key=f"status_{row['tmdb_id']}"
-                    )
-                    if new_status != row["status"]:
-                        db.update_status(row["tmdb_id"], new_status)
-                        st.rerun()
-                    
-                    new_watcher = st.selectbox(
-                        "List", 
-                        ["Both", "TJ", "Kristen"], 
-                        index=["Both", "TJ", "Kristen"].index(row["watcher"]),
-                        key=f"watcher_{row['tmdb_id']}"
-                    )
-                    if new_watcher != row["watcher"]:
-                        db.update_watcher(row["tmdb_id"], new_watcher)
-                        st.rerun()
-                        
-                    if st.button("🗑️ Remove", key=f"del_{row['tmdb_id']}", type="secondary"):
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        new_status = st.selectbox(
+                            "Status", 
+                            ["Want to Watch", "Watching", "Watched"], 
+                            index=["Want to Watch", "Watching", "Watched"].index(row["status"]),
+                            key=f"status_{row['tmdb_id']}"
+                        )
+                        if new_status != row["status"]:
+                            db.update_status(row["tmdb_id"], new_status)
+                            st.rerun()
+                    with c2:
+                        new_watcher = st.selectbox(
+                            "List", 
+                            ["Both", "TJ", "Kristen"], 
+                            index=["Both", "TJ", "Kristen"].index(row["watcher"]),
+                            key=f"watcher_{row['tmdb_id']}"
+                        )
+                        if new_watcher != row["watcher"]:
+                            db.update_watcher(row["tmdb_id"], new_watcher)
+                            st.rerun()
+                            
+                    if st.button("🗑️ Remove", key=f"del_{row['tmdb_id']}", type="secondary", use_container_width=True):
                         db.delete_media(row["tmdb_id"])
+                        st.rerun()
+
+elif menu == "✨ Recommendations":
+    st.subheader("✨ Recommended For You")
+    
+    rec_target = st.radio(
+        "Generate recommendations based on list:",
+        ["Both", "TJ", "Kristen"],
+        horizontal=True
+    )
+    
+    user_items = db.get_watchlist(watcher_filter=rec_target)
+    
+    if not user_items:
+        st.info(f"No saved items found for '{rec_target}' yet. Add a few titles to unlock recommendations!")
+    else:
+        with st.spinner("Finding recommendations based on your tastes..."):
+            recs = tmdb.get_recommendations_for_user(user_items)
+            
+        if not recs:
+            st.write("No direct recommendations found yet. Try adding a couple more titles.")
+        else:
+            cols = st.columns(2)
+            for idx, item in enumerate(recs):
+                with cols[idx % 2]:
+                    with st.container(border=True):
+                        if item["poster_path"]:
+                            st.image(item["poster_path"], use_container_width=True)
+                        st.markdown(f"### {item['title']} ({item['media_type'].upper()})")
+                        st.caption(f"💡 *Because you have '{item['recommended_because']}' in your list*")
+                        st.write(item["overview"])
+                        
+                        target_list = st.selectbox(
+                            "Add to list:", 
+                            ["Both", "TJ", "Kristen"], 
+                            index=["Both", "TJ", "Kristen"].index(rec_target),
+                            key=f"rec_target_{item['tmdb_id']}"
+                        )
+                        
+                        if st.button("➕ Add to Registry", key=f"add_rec_{item['tmdb_id']}", use_container_width=True):
+                            details = tmdb.get_details(item["tmdb_id"], item["media_type"])
+                            genres = ", ".join([g["name"] for g in details.get("genres", [])])
+                            providers = tmdb.get_watch_providers(item["tmdb_id"], item["media_type"])
+                            
+                            db.add_media(
+                                tmdb_id=item["tmdb_id"],
+                                title=item["title"],
+                                media_type=item["media_type"],
+                                release_date=item["release_date"],
+                                poster_path=item["poster_path"],
+                                streaming_providers=providers,
+                                watcher=target_list,
+                                genres=genres,
+                                next_ep_info="",
+                                status="Want to Watch"
+                            )
+                            st.success(f"Added to {target_list}'s List!")
+                            st.rerun()
+
+elif menu == "📅 Coming Soon (Next 30 Days)":
+    st.subheader("📅 Releasing in the Next 30 Days")
+    
+    media_choice = st.selectbox("Select Media Type:", ["Movies", "TV Shows"])
+    type_code = "movie" if media_choice == "Movies" else "tv"
+    
+    with st.spinner(f"Loading upcoming {media_choice.lower()}..."):
+        upcoming_items = tmdb.get_upcoming_media(type_code)
+        
+    if not upcoming_items:
+        st.info("No upcoming releases found in this window.")
+    else:
+        cols = st.columns(2)
+        for idx, item in enumerate(upcoming_items):
+            with cols[idx % 2]:
+                with st.container(border=True):
+                    if item["poster_path"]:
+                        st.image(item["poster_path"], use_container_width=True)
+                    st.markdown(f"### {item['title']}")
+                    st.markdown(render_countdown(item["release_date"], item["media_type"]))
+                    st.caption(item["overview"])
+                    
+                    target_list = st.selectbox(
+                        "Add to list:", 
+                        ["Both", "TJ", "Kristen"], 
+                        key=f"cs_target_{item['tmdb_id']}"
+                    )
+                    if st.button("➕ Add to Registry", key=f"add_cs_{item['tmdb_id']}", use_container_width=True):
+                        details = tmdb.get_details(item["tmdb_id"], item["media_type"])
+                        genres = ", ".join([g["name"] for g in details.get("genres", [])])
+                        providers = tmdb.get_watch_providers(item["tmdb_id"], item["media_type"])
+                        
+                        db.add_media(
+                            tmdb_id=item["tmdb_id"],
+                            title=item["title"],
+                            media_type=item["media_type"],
+                            release_date=item["release_date"],
+                            poster_path=item["poster_path"],
+                            streaming_providers=providers,
+                            watcher=target_list,
+                            genres=genres,
+                            next_ep_info="",
+                            status="Want to Watch"
+                        )
+                        st.success(f"Added to {target_list}'s List!")
                         st.rerun()
