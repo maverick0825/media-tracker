@@ -58,11 +58,11 @@ if menu == "Search & Add":
         
         for item in results:
             with st.container(border=True):
-                col1, col2 = st.columns([1, 3])
+                col1, col2 = st.columns([1, 4])
                 
                 with col1:
                     if item["poster_path"]:
-                        st.image(item["poster_path"], use_container_width=True)
+                        st.image(item["poster_path"], width=160)
                     else:
                         st.write("🖼️ *No poster*")
                 
@@ -83,7 +83,7 @@ if menu == "Search & Add":
                     with add_col2:
                         st.write("")
                         st.write("")
-                        if st.button("➕ Add to Registry", key=f"add_{item['tmdb_id']}", use_container_width=True):
+                        if st.button("➕ Add to Registry", key=f"add_{item['tmdb_id']}", width="stretch"):
                             providers = tmdb.get_watch_providers(item["tmdb_id"], item["media_type"])
                             db.add_media(
                                 tmdb_id=item["tmdb_id"],
@@ -139,15 +139,16 @@ elif menu == "Our Watchlists":
         for idx, row in enumerate(items):
             with cols[idx % 2]:
                 with st.container(border=True):
-                    if row["poster_path"]:
-                        st.image(row["poster_path"], use_container_width=True)
-                    st.markdown(f"### {row['title']}")
-                    st.caption(render_countdown(row["release_date"], row["media_type"], row.get("next_ep_info", "")))
-                    
-                    if row["genres"]:
-                        st.caption(f"🏷️ `{row['genres']}`")
-                        
-                    st.markdown(f"📺 **Streaming:** `{row['streaming_providers']}`")
+                    card_col1, card_col2 = st.columns([1, 2])
+                    with card_col1:
+                        if row["poster_path"]:
+                            st.image(row["poster_path"], width=170)
+                    with card_col2:
+                        st.markdown(f"### {row['title']}")
+                        st.caption(render_countdown(row["release_date"], row["media_type"], row.get("next_ep_info", "")))
+                        if row["genres"]:
+                            st.caption(f"🏷️ `{row['genres']}`")
+                        st.markdown(f"📺 **Streaming:** `{row['streaming_providers']}`")
                     
                     c1, c2 = st.columns(2)
                     with c1:
@@ -171,7 +172,7 @@ elif menu == "Our Watchlists":
                             db.update_watcher(row["tmdb_id"], new_watcher)
                             st.rerun()
                             
-                    if st.button("🗑️ Remove", key=f"del_{row['tmdb_id']}", type="secondary", use_container_width=True):
+                    if st.button("🗑️ Remove", key=f"del_{row['tmdb_id']}", type="secondary", width="stretch"):
                         db.delete_media(row["tmdb_id"])
                         st.rerun()
 
@@ -199,11 +200,14 @@ elif menu == "✨ Recommendations":
             for idx, item in enumerate(recs):
                 with cols[idx % 2]:
                     with st.container(border=True):
-                        if item["poster_path"]:
-                            st.image(item["poster_path"], use_container_width=True)
-                        st.markdown(f"### {item['title']} ({item['media_type'].upper()})")
-                        st.caption(f"💡 *Because you have '{item['recommended_because']}' in your list*")
-                        st.write(item["overview"])
+                        card_col1, card_col2 = st.columns([1, 2])
+                        with card_col1:
+                            if item["poster_path"]:
+                                st.image(item["poster_path"], width=170)
+                        with card_col2:
+                            st.markdown(f"### {item['title']} ({item['media_type'].upper()})")
+                            st.caption(f"💡 *Because you have '{item['recommended_because']}' in your list*")
+                            st.write(item["overview"])
                         
                         target_list = st.selectbox(
                             "Add to list:", 
@@ -212,7 +216,7 @@ elif menu == "✨ Recommendations":
                             key=f"rec_target_{item['tmdb_id']}"
                         )
                         
-                        if st.button("➕ Add to Registry", key=f"add_rec_{item['tmdb_id']}", use_container_width=True):
+                        if st.button("➕ Add to Registry", key=f"add_rec_{item['tmdb_id']}", width="stretch"):
                             details = tmdb.get_details(item["tmdb_id"], item["media_type"])
                             genres = ", ".join([g["name"] for g in details.get("genres", [])])
                             providers = tmdb.get_watch_providers(item["tmdb_id"], item["media_type"])
@@ -248,18 +252,21 @@ elif menu == "📅 Coming Soon (Next 30 Days)":
         for idx, item in enumerate(upcoming_items):
             with cols[idx % 2]:
                 with st.container(border=True):
-                    if item["poster_path"]:
-                        st.image(item["poster_path"], use_container_width=True)
-                    st.markdown(f"### {item['title']}")
-                    st.markdown(render_countdown(item["release_date"], item["media_type"]))
-                    st.caption(item["overview"])
+                    card_col1, card_col2 = st.columns([1, 2])
+                    with card_col1:
+                        if item["poster_path"]:
+                            st.image(item["poster_path"], width=170)
+                    with card_col2:
+                        st.markdown(f"### {item['title']}")
+                        st.markdown(render_countdown(item["release_date"], item["media_type"]))
+                        st.caption(item["overview"])
                     
                     target_list = st.selectbox(
                         "Add to list:", 
                         ["Both", "TJ", "Kristen"], 
                         key=f"cs_target_{item['tmdb_id']}"
                     )
-                    if st.button("➕ Add to Registry", key=f"add_cs_{item['tmdb_id']}", use_container_width=True):
+                    if st.button("➕ Add to Registry", key=f"add_cs_{item['tmdb_id']}", width="stretch"):
                         details = tmdb.get_details(item["tmdb_id"], item["media_type"])
                         genres = ", ".join([g["name"] for g in details.get("genres", [])])
                         providers = tmdb.get_watch_providers(item["tmdb_id"], item["media_type"])
